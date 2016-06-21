@@ -17,7 +17,10 @@ Primary use was to generate a very simple xml format for use by Jenkins plot plu
                     short: true, //defaults to false - will output full info in the console
                     xml: true, // default is false
                     json: false, //default is false
-                    filename: 'myoutput' // defaults to 'filesize-[target].[ext]'
+                    filename: 'myoutput' // defaults to 'filesize-[target].[ext]',
+                    thresholds: [102400,204800] // [warning, error] thresholds for individual files
+                    totalThresholds: [524288,1048576] // [warning, error] for totals of all files
+                    failOnerror: false // fail task when error threshold crossed
                 }
             },
             css: {
