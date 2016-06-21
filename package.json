@@ -1,6 +1,6 @@
 {
   "name": "grunt-filesize-report",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "(Very) simple filesize reporter for grunt. Primary use was to generate a very simple xml format for use by Jenkins plot plugin.",
   "author": {
     "name": "Stuart Campbell",
