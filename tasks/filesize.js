@@ -24,9 +24,9 @@ module.exports = function(grunt) {
     });
 
     var options = this.options();
-    options.output = options.output || {};
+    console.log(options)
 
-    if (options.output.console !== false) {
+    if (options.console !== false) {
       var widths = [75,10,10,10];
       var sep = '  ';
       var total = files.map(function(file) {
@@ -40,7 +40,7 @@ module.exports = function(grunt) {
       grunt.log.writeln(grunt.log.table(widths, ['File', sep + 'B', sep + 'kB', sep + 'MB']));
       grunt.log.writeln();
 
-      if(!options.output.short) {
+      if(!options.short) {
         files.forEach(function (file) {
           grunt.log.writeln(grunt.log.table(widths, [file.filename, sep + file.size.toString(), sep + formatSize(file.kb), sep + formatSize(file.mb)]));
         });
@@ -50,13 +50,13 @@ module.exports = function(grunt) {
       grunt.log.writeln(grunt.log.table(widths,['Total',sep+total.toString(),sep+formatSize(total / 1024),sep+formatSize(total / 1024 / 1024)]));
     }
 
-    options.output.filename = options.output.folder + '/' + (options.output.filename || 'filesize-' + this.target);
+    options.filename = options.folder + '/' + (options.filename || 'filesize-' + this.target);
 
-    if(options.output.folder) {
-      grunt.file.mkdir(options.output.folder);
+    if(options.folder) {
+      grunt.file.mkdir(options.folder);
     }
 
-    if (options.output.xml) {
+    if (options.xml) {
       var str = '<filesizes type="'+this.target+'">';
 
       files.forEach(function(file) {
@@ -64,11 +64,11 @@ module.exports = function(grunt) {
       });
 
       str += '</filesizes>';
-      fs.writeFileSync(options.output.filename + '.xml', str);
+      fs.writeFileSync(options.filename + '.xml', str);
     }
 
-    if (options.output.json) {
-      fs.writeFileSync(options.output.filename + '.json',JSON.stringify(files));
+    if (options.json) {
+      fs.writeFileSync(options.filename + '.json',JSON.stringify(files));
     }
 
   });
