@@ -3,99 +3,132 @@ var path = require('path');
 
 module.exports = function(grunt) {
 
+  var MultiReporter = require('violation-reporter')(grunt);
+  var XMLReporter = require('violation-reporter/tasks/XML')(grunt);
+  var pmdReporter = require('violation-reporter/tasks/PmdXML')(grunt, XMLReporter);
+  var checkstyleReporter = require('violation-reporter/tasks/CheckstyleXML')(grunt, XMLReporter);
+  var jenkinsReporter = require('./JenkinsXML')(grunt, XMLReporter);
+  var consoleReporter = require('./Console')(grunt);
+
   var defaults = {
-    failOnError: false,
-    thresholds: [102400,204800],
-    totalThresholds: [524288,1048576]
+    fail: true,
+    failOn: 'error',
+    thresholds: {
+      error: 0.5,
+      warning: 0.75
+    },
+    filesizes: {
+      size: 102400,
+      total: 524288
+    }
   };
 
-  function formatSize(num) {
-    return num.toFixed(2).toString();
+  function getReporter(files, options) {
+    var reporter = new MultiReporter(files, options);
+    reporter.addReporter(consoleReporter);
+    if (options.pmdXML) {
+      reporter.addReporter(pmdReporter);
+    }
+    if (options.checkstyleXML) {
+      reporter.addReporter(checkstyleReporter);
+    }
+    if (options.jenkinsXML) {
+      reporter.addReporter(jenkinsReporter);
+    }
+    return reporter;
   }
 
-  grunt.registerMultiTask("filesize", "", function() {
+  grunt.registerMultiTask('filesize', 'Analyzes filesizes', function() {
 
+    var done = this.async();
+
+    var files = this.filesSrc || grunt.file.expand(this.file.src);
+    var excluded = this.data.exclude;
     var options = this.options(defaults);
-    var errors = 0;
+
+    var reporter = getReporter(files, options);
+
+
+    // Exclude any unwanted files from 'files' array
+    if (excluded) {
+      grunt.file.expand(excluded).forEach(function(ex){
+        files.splice(files.indexOf(ex), 1);
+      });
+    }
+
+    var results = [];
+
+    function getSeverity(ratio) {
+      if (ratio < options.thresholds.error) {
+        return 'error';
+      } else if (ratio < options.thresholds.warning) {
+        return 'warning';
+      }
+      return 'info';
+    }
+
+    function setFailures(severity) {
+      if (options.failOn === 'error' && severity !== 'error') {
+        return;
+      }
+      grunt.fail.errorcount++;
+    }
+
+    function processAnalysis(analysis, file) {
+
+      var violations = [];
+      var ratio;
+      var severity;
+      var metrics = analysis.metrics;
+
+      Object.keys(metrics).forEach(function(key) {
+
+        ratio = options.filesizes[key] / metrics[key];
+
+        severity = getSeverity(ratio);
+
+        violations.push({
+          filepath: file,
+          line: 0,
+          column: 0,
+          name: key,
+          rule: key,
+          severity: severity,
+          message: 'Filesize too large',
+          ratio: ratio,
+          value: metrics[key]
+        });
+
+        setFailures(severity);
+
+      });
+      reporter.violations(file, violations);
+      results.push(file);
+    }
+
+    reporter.start();
+
     var total = 0;
 
-    var files = this.filesSrc.filter(function (file) {
-      return grunt.file.exists(file);
-    }).map(function(file){
+    files.forEach(function(file) {
       var stat = fs.statSync(file);
-      if(stat.size > options.thresholds[1]) {
-        errors += 1;
-      }
-      total += stat.size;
-      return {
-        fullpath: path.resolve(file),
-        filename: file,
-        basename: path.basename(file),
-        size: stat.size,
-        kb: stat.size / 1024,
-        mb: stat.size / 1024 / 1024
+      var analysis = {
+        metrics: {
+          size: stat.size
+        }
       };
+      processAnalysis(analysis, file);
+      total += stat.size;
     });
 
-    if(total > options.totalThresholds[1]) {
-      errors += 1;
-    }
-
-    function getColor(size, thresholds) {
-      thresholds = thresholds || options.thresholds;
-      if(size > thresholds[1]) {
-        return 'red';
-      } else if(size > thresholds[0]) {
-        return 'yellow';
+    processAnalysis({
+      metrics : {
+        total: total
       }
-      return 'green';
-    }
+    }, 'Total');
 
-    if (options.console !== false) {
-      var widths = [75,10,10,10];
-      var sep = '  ';
-
-      grunt.log.writeln('==========================');
-      grunt.log.writeln('Filesize analysis: '+this.target);
-      grunt.log.writeln('==========================');
-      grunt.log.writeln(grunt.log.table(widths, ['File', sep + 'B', sep + 'kB', sep + 'MB']));
-      grunt.log.writeln();
-
-      if(!options.short) {
-        files.forEach(function (file) {
-          grunt.log.writeln(grunt.log.table(widths, [file.filename, sep + file.size.toString(), sep + formatSize(file.kb), sep + formatSize(file.mb)]) [getColor(file.size)]);
-        });
-        grunt.log.writeln();
-      }
-
-      grunt.log.writeln(grunt.log.table(widths,['Total',sep+total.toString(),sep+formatSize(total / 1024),sep+formatSize(total / 1024 / 1024)]) [getColor(total,options.totalThresholds)]);
-    }
-
-    options.filename = options.folder + '/' + (options.filename || 'filesize-' + this.target);
-
-    if(options.folder) {
-      grunt.file.mkdir(options.folder);
-    }
-
-    if (options.xml) {
-      var str = '<filesizes type="'+this.target+'">';
-
-      files.forEach(function(file) {
-        str += '<' + file.basename + '>' + file.size + '</'+file.basename+'>';
-      });
-
-      str += '</filesizes>';
-      fs.writeFileSync(options.filename + '.xml', str);
-    }
-
-    if (options.json) {
-      fs.writeFileSync(options.filename + '.json',JSON.stringify(files));
-    }
-
-    if(options.failOnError) {
-      grunt.fail.warn('Error threshold broken');
-    }
-
+    reporter.finish();
+    done(options.fail === false || this.errorCount === 0);
   });
 
 };

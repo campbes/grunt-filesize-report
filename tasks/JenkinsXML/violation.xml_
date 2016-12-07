@@ -1,0 +1,3 @@
+<% violations.forEach(function(data){ %>
+    <<%= filepath %> file="<%= data.filepath %>" line="<%=data.line %>" column="<%=data.column %>" message="<%= data.message %>: <%= data.value %>" severity="<%= data.severity %>" source="<%= data.rule %>"><%= data.value %></<%= filepath %>>
+<% }) %>
